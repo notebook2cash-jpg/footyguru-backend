@@ -1,0 +1,2 @@
+# scraper ใช้เฉพาะ Python standard library (urllib, zoneinfo, hashlib ฯลฯ)
+# ต้องใช้ Python 3.9+ (GitHub Actions ใช้ 3.11) — ไม่มี dependency ภายนอก

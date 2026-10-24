@@ -1,0 +1,22 @@
+# Render Blueprint — deploy FootyGuru API
+# วิธีใช้: Render Dashboard → New → Blueprint → เลือก repo นี้
+# แล้วกรอกค่า env (sync:false) 3 ตัวในหน้า Render
+services:
+  - type: web
+    name: baan-api
+    runtime: python
+    rootDir: api
+    plan: free                       # เปลี่ยนเป็น starter ($7) ถ้าไม่อยากให้ cold start
+    region: singapore                # ใกล้ไทยสุด
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: APP_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"

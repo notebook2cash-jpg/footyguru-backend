@@ -1,0 +1,32 @@
+name: scrape-baan
+
+# รันวันละ 2 รอบ (เวลา UTC — GitHub cron เป็น UTC เสมอ)
+#   01:00 UTC = 08:00 ไทย (รอบเช้า)
+#   06:00 UTC = 13:00 ไทย (รอบบ่าย)
+on:
+  schedule:
+    - cron: "0 1 * * *"
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}      # กดรันเองได้จากหน้า Actions
+
+concurrency:
+  group: scrape-baan
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install -r scraper/requirements.txt
+      - name: Run scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TZ: Asia/Bangkok
+        run: python scraper/scrape_baan.py
