@@ -103,3 +103,29 @@ def standings_one(league: str, response: Response, x_api_key: str = Header(defau
         raise HTTPException(status_code=404, detail="league not found")
     response.headers["Cache-Control"] = CACHE
     return rows[0]
+
+@app.get("/api/news")
+def news(response: Response, limit: int = 40, x_api_key: str = Header(default="")):
+    check_key(x_api_key)
+    limit = max(1, min(limit, 100))
+    # list แบบเบา (ไม่ส่ง body) เรียงล่าสุดก่อน
+    q = f"category=eq.football&select=id,title,summary,image,published,flag,url&order=id.desc&limit={limit}"
+    try:
+        rows = sb_get("news", q)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"supabase error: {e}")
+    response.headers["Cache-Control"] = CACHE
+    return {"category": "football", "count": len(rows), "news": rows}
+
+@app.get("/api/news/{news_id}")
+def news_one(news_id: str, response: Response, x_api_key: str = Header(default="")):
+    check_key(x_api_key)
+    q = f"id=eq.{urllib.parse.quote(news_id)}&select=*&limit=1"
+    try:
+        rows = sb_get("news", q)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"supabase error: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail="news not found")
+    response.headers["Cache-Control"] = CACHE
+    return rows[0]

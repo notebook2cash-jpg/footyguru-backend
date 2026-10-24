@@ -38,3 +38,10 @@ jobs:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
           TZ: Asia/Bangkok
         run: python scraper/standings.py
+      - name: Scrape news (thsport.app football)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
+          TZ: Asia/Bangkok
+        run: python scraper/news.py

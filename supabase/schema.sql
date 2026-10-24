@@ -47,6 +47,22 @@ create table if not exists public.standings (
 );
 alter table public.standings enable row level security;
 
+-- ---------- ข่าว (news) ----------
+create table if not exists public.news (
+  id         text primary key,          -- news id จาก thsport.app
+  category   text,                      -- 'football' (ฟุตบอลต่างประเทศ)
+  title      text,
+  summary    text,
+  body       text,
+  image      text,                      -- og:image URL
+  published  text,                      -- '24 ต.ค. - 16:19'
+  flag       text,                      -- ธงลีก/ชาติ
+  url        text,                      -- ลิงก์ต้นฉบับ
+  scraped_at timestamptz not null default now()
+);
+create index if not exists news_cat_idx on public.news (category, id desc);
+alter table public.news enable row level security;
+
 -- ---------- Row Level Security ----------
 -- เปิด RLS แล้ว "ไม่สร้าง policy สาธารณะ" => อ่าน/เขียนได้เฉพาะ service_role key
 -- (scraper ใน GitHub Actions + Render API ใช้ service key ฝั่งเซิร์ฟเวอร์เท่านั้น)
