@@ -80,3 +80,26 @@ def match(match_id: str, response: Response, x_api_key: str = Header(default="")
         raise HTTPException(status_code=404, detail="match not found")
     response.headers["Cache-Control"] = CACHE
     return rows[0]
+
+@app.get("/api/standings")
+def standings(response: Response, x_api_key: str = Header(default="")):
+    check_key(x_api_key)
+    try:
+        rows = sb_get("standings", "select=league,data,updated_at&order=league")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"supabase error: {e}")
+    response.headers["Cache-Control"] = CACHE
+    return {"leagues": [r["league"] for r in rows], "standings": {r["league"]: r["data"] for r in rows}}
+
+@app.get("/api/standings/{league}")
+def standings_one(league: str, response: Response, x_api_key: str = Header(default="")):
+    check_key(x_api_key)
+    q = f"league=eq.{urllib.parse.quote(league)}&select=league,data,updated_at&limit=1"
+    try:
+        rows = sb_get("standings", q)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"supabase error: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail="league not found")
+    response.headers["Cache-Control"] = CACHE
+    return rows[0]

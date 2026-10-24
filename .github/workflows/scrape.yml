@@ -31,3 +31,10 @@ jobs:
           SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
           TZ: Asia/Bangkok
         run: python scraper/scrape_baan.py
+      - name: Build standings (football-data.org + OpenLigaDB)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+          TZ: Asia/Bangkok
+        run: python scraper/standings.py

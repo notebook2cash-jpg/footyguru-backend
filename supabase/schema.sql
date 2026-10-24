@@ -38,6 +38,15 @@ create table if not exists public.team_logos (
   created_at    timestamptz not null default now()
 );
 
+-- ---------- ตารางคะแนนลีก (standings) ----------
+-- 1 แถว/ลีก · data = jsonb {generated_at, season, key, league_name, league_name_th, table:[StandingRow...]}
+create table if not exists public.standings (
+  league     text primary key,         -- 'premier-league','laliga','serie-a','ligue-1','bundesliga','bundesliga-2'
+  data       jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table public.standings enable row level security;
+
 -- ---------- Row Level Security ----------
 -- เปิด RLS แล้ว "ไม่สร้าง policy สาธารณะ" => อ่าน/เขียนได้เฉพาะ service_role key
 -- (scraper ใน GitHub Actions + Render API ใช้ service key ฝั่งเซิร์ฟเวอร์เท่านั้น)
