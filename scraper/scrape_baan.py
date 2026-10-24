@@ -11,29 +11,54 @@ FootyGuru scraper → Supabase  (รันโดย GitHub Actions วันล�
 
 ENV: SUPABASE_URL, SUPABASE_SERVICE_KEY
 """
-import os, sys, re, json, time, html, random, hashlib, datetime, urllib.request, urllib.error
+import os, sys, re, json, time, html, random, hashlib, datetime, urllib.request, urllib.error, urllib.parse
 from zoneinfo import ZoneInfo
 
 BASE = "https://baan.football"
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 TZ = ZoneInfo("Asia/Bangkok")
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SERVICE_KEY  = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+# โหลด .env ถ้ามี (สำหรับรันในเครื่อง) — ไม่ต้องพึ่ง python-dotenv
+def _load_env():
+    for p in (os.path.join(os.path.dirname(__file__), "..", ".env"), ".env"):
+        try:
+            with open(p, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line: continue
+                    k, v = line.split("=", 1)
+                    v = re.split(r'\s+#', v.strip())[0].strip().strip('"').strip("'")  # ตัดคอมเมนต์ท้ายบรรทัด
+                    os.environ.setdefault(k.strip(), v)
+        except FileNotFoundError:
+            pass
+_load_env()
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+SERVICE_KEY  = os.environ.get("SUPABASE_SERVICE_KEY", "").strip()
+SCRAPERAPI_KEY = os.environ.get("SCRAPERAPI_KEY", "").strip()  # ถ้าตั้งค่า = ยิงผ่าน ScraperAPI (ข้าม Cloudflare)
 BUCKET = "team-logos"
 MIN_DELAY, MAX_DELAY = 1.0, 2.5   # หน่วงแบบสุ่มระหว่าง request (เนียน)
+
+def _target(url):
+    """ถ้ามี ScraperAPI key → ยิงผ่าน ScraperAPI (plain = 1 credit, หมุน IP+retry ข้าม Cloudflare ได้)"""
+    if not SCRAPERAPI_KEY:
+        return url
+    return "https://api.scraperapi.com/?" + urllib.parse.urlencode({"api_key": SCRAPERAPI_KEY, "url": url})
 
 def log(*a): print(*a, file=sys.stderr, flush=True)
 
 # ---------------- HTTP (ต้นทาง) ----------------
 def fetch(url, tries=4):
+    target = _target(url)
+    timeout = 120 if SCRAPERAPI_KEY else 30     # ScraperAPI ultra_premium ใช้เวลานานกว่า
     for i in range(tries):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "th,en;q=0.9"})
-            with urllib.request.urlopen(req, timeout=30) as r:
+            req = urllib.request.Request(target, headers={"User-Agent": UA, "Accept-Language": "th,en;q=0.9"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as e:
-            if e.code == 429:                      # เคารพ rate-limit
+            if e.code == 429:                      # เคารพ rate-limit / concurrency
                 wait = int(e.headers.get("Retry-After", "30"))
                 log(f"    429 → รอ {wait}s"); time.sleep(wait); continue
             if i == tries - 1: raise
@@ -47,8 +72,8 @@ def nap():  # หน่วงแบบสุ่มเลียนแบบคน
     time.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
 
 def fetch_bytes(url):
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    req = urllib.request.Request(_target(url), headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=120 if SCRAPERAPI_KEY else 30) as r:
         return r.read(), r.headers.get("Content-Type", "application/octet-stream")
 
 # ---------------- Supabase REST ----------------
@@ -67,7 +92,7 @@ def sb_request(method, path, params="", body=None, headers=None):
         return json.loads(raw) if raw else None
 
 def sb_select_existing(dates):
-    q = "match_date=in.(%s)&select=id,content_hash,has_detail" % ",".join(dates)
+    q = "match_date=in.(%s)&select=id,content_hash,has_detail,pred,pick" % ",".join(dates)
     try:
         rows = sb_request("GET", "/rest/v1/matches", q) or []
         return {r["id"]: r for r in rows}
@@ -285,8 +310,12 @@ def main():
         nap()
         for it in items:
             seen += 1; mid = it["id"]; prev = existing.get(mid)
-            # Incremental: เมื่อวาน ที่มี detail แล้ว => ข้าม (จบเกมแล้ว)
-            if ds == yday and prev and prev.get("has_detail"):
+            # Incremental (ประหยัด credit): ข้ามการดึง detail ถ้า...
+            #   - เมื่อวาน ที่มี detail แล้ว (จบเกมแล้ว) หรือ
+            #   - มี detail อยู่แล้ว และสกอร์คาด/ทีเด็ด (ระดับ listing) ไม่เปลี่ยน
+            if prev and prev.get("has_detail") and (
+                ds == yday or (prev.get("pred") == it.get("pred") and prev.get("pick") == it.get("pick"))
+            ):
                 skipped += 1; continue
             try:
                 det = parse_detail(fetch(it["url"])); fetched += 1
